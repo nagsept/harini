@@ -2,9 +2,8 @@ pipeline {
     agent any
 
     environment {
-        K8S_NAMESPACE = 'default' // Change if using another namespace
-        POD_NAME = ''             // Will be dynamically set
-        CONTAINER_NAME = 'drupal' // Your Drupal container name
+        K8S_NAMESPACE = 'default'           // Namespace of the Drupal pod
+        CONTAINER_NAME = 'drupal'           // Drupal container name
     }
 
     stages {
@@ -18,7 +17,7 @@ pipeline {
             steps {
                 script {
                     env.POD_NAME = sh(
-                        script: "kubectl get pods -n $K8S_NAMESPACE -l app=drupal -o jsonpath='{.items[0].metadata.name}'",
+                        script: "kubectl get pods -n ${env.K8S_NAMESPACE} -l app=drupal -o jsonpath={.items[0].metadata.name}",
                         returnStdout: true
                     ).trim()
                 }
@@ -27,14 +26,15 @@ pipeline {
 
         stage('Copy Code into Drupal Pod') {
             steps {
-                // Example: copy a custom module to /var/www/html/modules/custom
-                sh "kubectl cp ./src $POD_NAME:/var/www/html/modules/custom -n $K8S_NAMESPACE -c $CONTAINER_NAME"
+                script {
+                    sh "kubectl cp ./src ${env.K8S_NAMESPACE}/${env.POD_NAME}:/var/www/html/modules/custom -c ${env.CONTAINER_NAME}"
+                }
             }
         }
 
-        stage('Clear Cache (Optional)') {
+        stage('Clear Drupal Cache') {
             steps {
-                sh "kubectl exec -n $K8S_NAMESPACE $POD_NAME -c $CONTAINER_NAME -- drush cr"
+                sh "kubectl exec -n ${env.K8S_NAMESPACE} ${env.POD_NAME} -c ${env.CONTAINER_NAME} -- drush cr"
             }
         }
     }
