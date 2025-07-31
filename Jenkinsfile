@@ -1,10 +1,19 @@
 pipeline {
     agent any
 
+    environment {
+        REPO_URL = 'https://github.com/nagsept/harini.git'
+        BRANCH = 'kubectl'
+        KUBE_CONTEXT = 'docker-desktop'
+        POD_NAME = 'drupal-75bff6858f-tnn2v'
+        NAMESPACE = 'default'
+        TARGET_PATH = '/var/www/html'
+    }
+
     stages {
         stage('Clone Repo') {
             steps {
-                git url: 'https://github.com/nagsept/harini.git', branch: 'main'
+                git url: "${REPO_URL}", branch: "${BRANCH}"
             }
         }
 
@@ -14,16 +23,21 @@ pipeline {
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Copy Code into Drupal Pod') {
             steps {
-                sh 'docker run -d --name harini-container -p 8080:8080 harini-app'
+                script {
+                    sh """
+                        kubectl config use-context $KUBE_CONTEXT
+                        kubectl cp . $POD_NAME:$TARGET_PATH -n $NAMESPACE
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployed successfully.'
+            echo '✅ Code deployed into existing Drupal pod.'
         }
         failure {
             echo '❌ Deployment failed.'
