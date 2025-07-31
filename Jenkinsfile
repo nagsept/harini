@@ -1,9 +1,14 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'bitnami/kubectl:latest' // ✅ Image that has kubectl pre-installed
+            args '-v /var/run/docker.sock:/var/run/docker.sock' // optional if docker commands needed
+        }
+    }
 
     environment {
-        K8S_NAMESPACE = 'default'           // Namespace of the Drupal pod
-        CONTAINER_NAME = 'drupal'           // Drupal container name
+        K8S_NAMESPACE = 'default'
+        CONTAINER_NAME = 'drupal'
     }
 
     stages {
@@ -17,7 +22,7 @@ pipeline {
             steps {
                 script {
                     env.POD_NAME = sh(
-                        script: "kubectl get pods -n ${env.K8S_NAMESPACE} -l app=drupal -o jsonpath={.items[0].metadata.name}",
+                        script: "kubectl get pods -n $K8S_NAMESPACE -l app=drupal -o jsonpath='{.items[0].metadata.name}'",
                         returnStdout: true
                     ).trim()
                 }
@@ -26,15 +31,13 @@ pipeline {
 
         stage('Copy Code into Drupal Pod') {
             steps {
-                script {
-                    sh "kubectl cp ./src ${env.K8S_NAMESPACE}/${env.POD_NAME}:/var/www/html/modules/custom -c ${env.CONTAINER_NAME}"
-                }
+                sh "kubectl cp ./src $POD_NAME:/var/www/html/modules/custom -n $K8S_NAMESPACE -c $CONTAINER_NAME"
             }
         }
 
-        stage('Clear Drupal Cache') {
+        stage('Clear Cache (Optional)') {
             steps {
-                sh "kubectl exec -n ${env.K8S_NAMESPACE} ${env.POD_NAME} -c ${env.CONTAINER_NAME} -- drush cr"
+                sh "kubectl exec -n $K8S_NAMESPACE $POD_NAME -c $CONTAINER_NAME -- drush cr"
             }
         }
     }
