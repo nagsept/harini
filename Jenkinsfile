@@ -1,14 +1,10 @@
 pipeline {
-    agent {
-        docker {
-            image 'bitnami/kubectl:latest' // ✅ Image that has kubectl pre-installed
-            args '-v /var/run/docker.sock:/var/run/docker.sock' // optional if docker commands needed
-        }
-    }
+    agent any
 
     environment {
-        K8S_NAMESPACE = 'default'
-        CONTAINER_NAME = 'drupal'
+        K8S_NAMESPACE = 'default'           // Namespace of the Drupal pod
+        CONTAINER_NAME = 'drupal'           // Drupal container name
+        KUBECTL_IMAGE = 'bitnami/kubectl:latest'
     }
 
     stages {
@@ -22,7 +18,10 @@ pipeline {
             steps {
                 script {
                     env.POD_NAME = sh(
-                        script: "kubectl get pods -n $K8S_NAMESPACE -l app=drupal -o jsonpath='{.items[0].metadata.name}'",
+                        script: """
+                        docker run --rm -v ~/.kube:/root/.kube ${KUBECTL_IMAGE} \
+                        kubectl get pods -n ${env.K8S_NAMESPACE} -l app=drupal -o jsonpath='{.items[0].metadata.name}'
+                        """,
                         returnStdout: true
                     ).trim()
                 }
@@ -31,13 +30,21 @@ pipeline {
 
         stage('Copy Code into Drupal Pod') {
             steps {
-                sh "kubectl cp ./src $POD_NAME:/var/www/html/modules/custom -n $K8S_NAMESPACE -c $CONTAINER_NAME"
+                script {
+                    sh """
+                    docker run --rm -v ~/.kube:/root/.kube -v ${env.WORKSPACE}:/app ${KUBECTL_IMAGE} \
+                    kubectl cp /app/src ${env.K8S_NAMESPACE}/${env.POD_NAME}:/var/www/html/modules/custom -c ${env.CONTAINER_NAME}
+                    """
+                }
             }
         }
 
-        stage('Clear Cache (Optional)') {
+        stage('Clear Drupal Cache') {
             steps {
-                sh "kubectl exec -n $K8S_NAMESPACE $POD_NAME -c $CONTAINER_NAME -- drush cr"
+                sh """
+                docker run --rm -v ~/.kube:/root/.kube ${KUBECTL_IMAGE} \
+                kubectl exec -n ${env.K8S_NAMESPACE} ${env.POD_NAME} -c ${env.CONTAINER_NAME} -- drush cr
+                """
             }
         }
     }
