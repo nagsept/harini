@@ -20,7 +20,7 @@ pipeline {
                     env.POD_NAME = sh(
                         script: """
                         docker run --rm -v ~/.kube:/root/.kube ${KUBECTL_IMAGE} \
-                        kubectl get pods -n ${env.K8S_NAMESPACE} -l app=drupal -o jsonpath='{.items[0].metadata.name}'
+                        get pods -n ${env.K8S_NAMESPACE} -l app=drupal -o jsonpath='{.items[0].metadata.name}'
                         """,
                         returnStdout: true
                     ).trim()
@@ -33,7 +33,7 @@ pipeline {
                 script {
                     sh """
                     docker run --rm -v ~/.kube:/root/.kube -v ${env.WORKSPACE}:/app ${KUBECTL_IMAGE} \
-                    kubectl cp /app/src ${env.K8S_NAMESPACE}/${env.POD_NAME}:/var/www/html/modules/custom -c ${env.CONTAINER_NAME}
+                    cp /app/src ${env.K8S_NAMESPACE}/${env.POD_NAME}:/var/www/html/modules/custom -c ${env.CONTAINER_NAME}
                     """
                 }
             }
@@ -43,7 +43,7 @@ pipeline {
             steps {
                 sh """
                 docker run --rm -v ~/.kube:/root/.kube ${KUBECTL_IMAGE} \
-                kubectl exec -n ${env.K8S_NAMESPACE} ${env.POD_NAME} -c ${env.CONTAINER_NAME} -- drush cr
+                exec -n ${env.K8S_NAMESPACE} ${env.POD_NAME} -c ${env.CONTAINER_NAME} -- drush cr
                 """
             }
         }
